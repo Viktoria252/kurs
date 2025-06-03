@@ -1,0 +1,63 @@
+name: Java CD with Gradle
+
+on:
+  push:
+    branches: [ "main" ]
+  schedule:
+      -cron: '0 16 * * 2'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+        matrix:
+            os: [ ubnutu-latest, macos-latest, windows-latest ]
+            java-version: [11, 13, 17]
+    permissions:
+      contents: read
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up JDK
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ matrix.java-version }}
+        distribution: 'temurin'
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@af1da67850ed9a4cedd57bfd976089dd991e2582 # v4.0.0
+
+    - name: Build with Gradle Wrapper
+      run: ./gradlew build
+
+  deploy:
+    runs-on: ${{ matrix.os }}
+    strategy:
+        matrix:
+            os: [ ubnutu-latest, macos-latest, windows-latest ]
+            java-version: [11, 13, 17]
+    needs: build
+    if: success()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java-version }}
+          distribution: 'temurin'
+
+      - name: Deploy to Server
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}  
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          DEPLOY_PATH: /path/to/deploy   
+          
+        run: |
+          echo "$SSH_PRIVATE_KEY" > private_key
+          chmod 600 private_key
+          scp -i private_key -o StrictHostKeyChecking=no build/libs/your-app.jar $SERVER_USER@$SERVER_IP:/path/to/deploy/
+   
